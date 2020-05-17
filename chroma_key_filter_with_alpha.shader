@@ -28,27 +28,30 @@ float4 mainImage(VertData v_in) : TARGET
 	float4 rgba = image.Sample(textureSampler, v_in.uv);
 	float alpha = alpha_image.Sample(textureSampler, v_in.uv).a;
 
-	float2 h_pixel_size = uv_pixel_interval / 2.0;
-	float2 point_0 = float2(uv_pixel_interval.x, h_pixel_size.y);
-	float2 point_1 = float2(h_pixel_size.x, -uv_pixel_interval.y);
-	float distVal = distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv-point_0).rgb, 1.0), yuv_mat).yz);
-	distVal += distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv+point_0).rgb, 1.0), yuv_mat).yz);
-	distVal += distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv-point_1).rgb, 1.0), yuv_mat).yz);
-	distVal += distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv+point_1).rgb, 1.0), yuv_mat).yz);
-	distVal *= 2.0;
-	distVal += distance(chroma_key, mul(float4(rgba.rgb, 1.0), yuv_mat).yz);
-	float chromaDist = distVal / 9.0;
-	float baseMask = chromaDist - similarity;
-	float fullMask = pow(saturate(baseMask / smoothness), 1.5);
-	float spillVal = pow(saturate(baseMask / spill), 1.5);
+	if ( alpha < 1 )
+	{
+		float2 h_pixel_size = uv_pixel_interval / 2.0;
+		float2 point_0 = float2(uv_pixel_interval.x, h_pixel_size.y);
+		float2 point_1 = float2(h_pixel_size.x, -uv_pixel_interval.y);
+		float distVal = distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv-point_0).rgb, 1.0), yuv_mat).yz);
+		distVal += distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv+point_0).rgb, 1.0), yuv_mat).yz);
+		distVal += distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv-point_1).rgb, 1.0), yuv_mat).yz);
+		distVal += distance(chroma_key, mul(float4(image.Sample(textureSampler,v_in.uv+point_1).rgb, 1.0), yuv_mat).yz);
+		distVal *= 2.0;
+		distVal += distance(chroma_key, mul(float4(rgba.rgb, 1.0), yuv_mat).yz);
+		float chromaDist = distVal / 9.0;
+		float baseMask = chromaDist - similarity;
+		float fullMask = pow(saturate(baseMask / smoothness), 1.5);
+		float spillVal = pow(saturate(baseMask / spill), 1.5);
 
-	rgba.rgba *= color;
+		rgba.rgba *= color;
+		
+		rgba.a *= max(fullMask, alpha);
+		spillVal = max(spillVal, alpha);
+
+		float desat = (rgba.r * 0.2126 + rgba.g * 0.7152 + rgba.b * 0.0722);
+		rgba.rgb = saturate(float3(desat, desat, desat)) * (1.0 - spillVal) + rgba.rgb * spillVal;
+	}
 	
-	rgba.a *= max(fullMask, alpha);
-	spillVal = max(spillVal, alpha);
-
-	float desat = (rgba.r * 0.2126 + rgba.g * 0.7152 + rgba.b * 0.0722);
-	rgba.rgb = saturate(float3(desat, desat, desat)) * (1.0 - spillVal) + rgba.rgb * spillVal;
-
 	return float4(pow(rgba.rgb, float3(gamma, gamma, gamma)) * contrast + brightness, rgba.a);
 }
